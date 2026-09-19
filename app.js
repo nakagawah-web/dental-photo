@@ -89,6 +89,27 @@ const todayISO = () => {
 };
 const fmtDate = iso => iso ? iso.replace(/-/g, '/') : '';
 
+/* 生年月日：数字8桁を YYYY-MM-DD に整える。入れ違いや不正な日付は空を返す。 */
+function normalizeBirth(text) {
+  const d = (text || '').replace(/\D/g, '');
+  if (d.length !== 8) return '';
+  const y = +d.slice(0, 4), m = +d.slice(4, 6), day = +d.slice(6, 8);
+  const dt = new Date(y, m - 1, day);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== day) return '';
+  if (y < 1900 || dt > new Date()) return '';
+  return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/* 年齢（歳・か月）。小児矯正では装置の適応年齢に直結するので月まで出す。 */
+function ageOf(iso) {
+  if (!iso) return '';
+  const b = new Date(iso), n = new Date();
+  let mo = (n.getFullYear() - b.getFullYear()) * 12 + (n.getMonth() - b.getMonth());
+  if (n.getDate() < b.getDate()) mo--;
+  if (mo < 0) return '';
+  return `${Math.floor(mo / 12)}歳${mo % 12}か月`;
+}
+
 /* ============================================================
    画面遷移
    ============================================================ */
@@ -198,6 +219,15 @@ function openPatientDialog(p) {
   $('#patientDlg').showModal();
 }
 
+/* 打ちながら 2018-04-05 の形に整える */
+$('#pBirth').addEventListener('input', ev => {
+  const d = ev.target.value.replace(/\D/g, '').slice(0, 8);
+  let out = d.slice(0, 4);
+  if (d.length > 4) out += '-' + d.slice(4, 6);
+  if (d.length > 6) out += '-' + d.slice(6, 8);
+  ev.target.value = out;
+});
+
 $('#addPatientBtn').addEventListener('click', () => openPatientDialog(null));
 $('#editPatientBtn').addEventListener('click', async () => {
   openPatientDialog(await dbGet('patients', state.patientId));
@@ -212,7 +242,9 @@ $('#patientForm').addEventListener('submit', async ev => {
     : { id: uid(), createdAt: new Date().toISOString() };
   rec.no = no;
   rec.name = $('#pName').value.trim();
-  rec.birth = $('#pBirth').value;
+  const rawBirth = $('#pBirth').value.trim();
+  rec.birth = normalizeBirth(rawBirth);
+  if (rawBirth && !rec.birth) toast('生年月日が正しくないため空欄で保存しました');
   rec.memo = $('#pMemo').value.trim();
   await dbPut('patients', rec);
   if (editingPatient) { await renderPatient(rec.id, false); }
@@ -232,7 +264,7 @@ async function renderPatient(patientId, push = true) {
   head.appendChild(el('div', 'no', `患者番号 ${p.no}`));
   head.appendChild(el('div', 'nm', p.name || '（氏名未登録）'));
   const sub = [];
-  if (p.birth) sub.push(`生年月日 ${fmtDate(p.birth)}`);
+  if (p.birth) sub.push(`生年月日 ${fmtDate(p.birth)}　（${ageOf(p.birth)}）`);
   if (p.memo) sub.push(p.memo);
   if (sub.length) head.appendChild(el('div', 'mm', sub.join('\n')));
 

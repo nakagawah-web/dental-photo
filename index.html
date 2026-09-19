@@ -132,7 +132,7 @@
     <h2 id="dlgTitle">患者を追加</h2>
     <label class="field"><span>患者番号（必須）</span><input id="pNo" required autocomplete="off"></label>
     <label class="field"><span>氏名</span><input id="pName" autocomplete="off"></label>
-    <label class="field"><span>生年月日</span><input id="pBirth" type="date"></label>
+    <label class="field"><span>生年月日（数字8桁）</span><input id="pBirth" type="text" inputmode="numeric" placeholder="例：20180405" maxlength="10" autocomplete="off"></label>
     <label class="field"><span>メモ</span><textarea id="pMemo" rows="2"></textarea></label>
     <p class="help">氏名と生年月日は端末内だけに保存され、Drive には送られません。Drive のフォルダ名は患者番号になります。</p>
     <div class="btnrow end">
