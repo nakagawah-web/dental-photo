@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b3a4b">
+<title>中川歯科 口腔内写真</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header id="appbar">
+  <button id="backBtn" class="iconbtn" hidden aria-label="戻る">
+    <svg viewBox="0 0 24 24" class="ic"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+  <h1 id="title">患者一覧</h1>
+  <button id="settingsBtn" class="iconbtn" aria-label="設定">
+    <svg viewBox="0 0 24 24" class="ic"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</header>
+
+<main id="main">
+
+  <!-- 患者一覧 -->
+  <section id="view-patients" class="view">
+    <div class="searchrow">
+      <svg viewBox="0 0 24 24" class="ic muted"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="search" type="search" placeholder="患者番号・氏名で検索" autocomplete="off">
+    </div>
+    <ul id="patientList" class="list"></ul>
+    <p id="patientsEmpty" class="empty" hidden>患者が登録されていません。<br>右下のボタンから追加してください。</p>
+    <button id="addPatientBtn" class="fab" aria-label="患者を追加">
+      <svg viewBox="0 0 24 24" class="ic"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </section>
+
+  <!-- 患者詳細 -->
+  <section id="view-patient" class="view" hidden>
+    <div id="patientHead" class="pathead"></div>
+    <div class="btnrow">
+      <button id="newSessionBtn" class="primary">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
+        この日の撮影を始める
+      </button>
+      <button id="compareBtn">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M3 3v18h18"/><path d="m7 15 3-4 3 3 5-7"/></svg>
+        経過を比較
+      </button>
+    </div>
+    <h2 class="sub">来院履歴</h2>
+    <ul id="sessionList" class="list"></ul>
+    <p id="sessionsEmpty" class="empty" hidden>まだ撮影がありません。</p>
+    <button id="editPatientBtn" class="linkbtn">患者情報を編集</button>
+  </section>
+
+  <!-- 撮影 -->
+  <section id="view-capture" class="view capture" hidden>
+    <div class="camwrap">
+      <video id="cam" playsinline muted autoplay></video>
+      <div id="guide" class="guide"></div>
+      <img id="shot" class="shot" hidden alt="">
+    </div>
+    <div class="capbar">
+      <p id="capLabel" class="caplabel"></p>
+      <p id="capHint" class="caphint"></p>
+      <div class="capctrl">
+        <button id="skipBtn" class="ghost">この枚をとばす</button>
+        <button id="shutter" class="shutter" aria-label="撮影"></button>
+        <button id="retakeBtn" class="ghost" hidden>撮り直す</button>
+        <button id="keepBtn" class="ghost strong" hidden>これでよい</button>
+      </div>
+      <div id="progress" class="progress"></div>
+    </div>
+  </section>
+
+  <!-- 来院詳細 -->
+  <section id="view-session" class="view" hidden>
+    <div id="sessionHead" class="pathead"></div>
+    <div id="sessionGrid" class="grid"></div>
+    <div class="btnrow">
+      <button id="resumeBtn">未撮影の続きを撮る</button>
+      <button id="syncBtn" class="primary">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M21 12a9 9 0 0 1-9 9c-2.5 0-4.8-1-6.4-2.7M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.4 2.7"/><path d="M21 3v6h-6M3 21v-6h6"/></svg>
+        Driveへ同期
+      </button>
+    </div>
+    <button id="deleteSessionBtn" class="linkbtn danger">この来院の記録を削除</button>
+  </section>
+
+  <!-- 経過比較 -->
+  <section id="view-compare" class="view" hidden>
+    <div class="viewpicker" id="viewPicker"></div>
+    <div id="compareStrip" class="strip"></div>
+    <p id="compareEmpty" class="empty" hidden>このアングルの写真がまだありません。</p>
+  </section>
+
+  <!-- 設定 -->
+  <section id="view-settings" class="view" hidden>
+    <h2 class="sub">Google Drive 連携</h2>
+    <div id="driveStatus" class="statusbox"></div>
+    <label class="field">
+      <span>OAuth クライアントID</span>
+      <input id="clientId" type="text" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off">
+    </label>
+    <p class="help">Google Cloud Console で作成したウェブアプリケーション用のクライアントIDを貼り付けてください。手順は README.md にあります。</p>
+    <div class="btnrow">
+      <button id="saveClientId" class="primary">保存</button>
+      <button id="signInBtn">サインイン</button>
+      <button id="signOutBtn" class="ghost">サインアウト</button>
+    </div>
+
+    <h2 class="sub">撮影者</h2>
+    <label class="field">
+      <span>名前（写真の記録に残ります）</span>
+      <input id="operator" type="text" placeholder="例：中川" autocomplete="off">
+    </label>
+    <button id="saveOperator" class="primary">保存</button>
+
+    <h2 class="sub">データ</h2>
+    <div class="statusbox" id="storageStat"></div>
+    <button id="exportBtn">患者・来院データを書き出す（JSON）</button>
+    <p class="help">書き出せるのは患者と来院の記録だけで、写真の画像は含まれません。画像は端末内にあります。端末を変える前に必ず Drive へ同期してください。</p>
+  </section>
+
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<dialog id="patientDlg">
+  <form method="dialog" id="patientForm">
+    <h2 id="dlgTitle">患者を追加</h2>
+    <label class="field"><span>患者番号（必須）</span><input id="pNo" required autocomplete="off"></label>
+    <label class="field"><span>氏名</span><input id="pName" autocomplete="off"></label>
+    <label class="field"><span>生年月日</span><input id="pBirth" type="date"></label>
+    <label class="field"><span>メモ</span><textarea id="pMemo" rows="2"></textarea></label>
+    <p class="help">氏名と生年月日は端末内だけに保存され、Drive には送られません。Drive のフォルダ名は患者番号になります。</p>
+    <div class="btnrow end">
+      <button value="cancel" class="ghost">キャンセル</button>
+      <button value="ok" class="primary">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="app.js"></script>
+</body>
+</html>

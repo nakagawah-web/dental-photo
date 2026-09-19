@@ -1,0 +1,14 @@
+{
+  "name": "中川歯科 口腔内写真",
+  "short_name": "口腔内写真",
+  "description": "規格写真の撮影・保存・経過比較",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f6f5",
+  "theme_color": "#1b3a4b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
