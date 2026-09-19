@@ -318,6 +318,22 @@ $('#newSessionBtn').addEventListener('click', async () => {
 
 $('#compareBtn').addEventListener('click', () => renderCompare());
 
+$('#deletePatientBtn').addEventListener('click', async () => {
+  const p = await dbGet('patients', state.patientId);
+  if (!p) return;
+  const photos = await dbGetAll('photos', 'patientId', state.patientId);
+  const sessions = await dbGetAll('sessions', 'patientId', state.patientId);
+  const msg = `${p.name || p.no} の記録を端末から削除します。\n\n`
+    + `来院 ${sessions.length} 件、写真 ${photos.length} 枚が消えます。元に戻せません。\n`
+    + `Drive へ同期済みの写真は Drive に残ります。\n\nよろしいですか。`;
+  if (!confirm(msg)) return;
+  for (const x of photos) await dbDel('photos', x.id);
+  for (const s of sessions) await dbDel('sessions', s.id);
+  await dbDel('patients', p.id);
+  toast('削除しました');
+  renderPatients(false);
+});
+
 /* ============================================================
    撮影
    ============================================================ */
