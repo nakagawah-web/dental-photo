@@ -6,17 +6,26 @@
    ============================================================ */
 
 /* ---------- 規格写真 8枚の定義 ---------- */
+/* intraoral: true の8枚は口腔内。zoom は撮影時に自動で適用する倍率。 */
 const VIEWS = [
-  { id: 'io_front',   label: '口腔内 正面',     hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に', guide: { t: 28, l: 8,  r: 8,  b: 28 } },
-  { id: 'io_right',   label: '口腔内 右側方',   hint: '右側の犬歯から第一大臼歯まで入れる',             guide: { t: 28, l: 8,  r: 8,  b: 28 } },
-  { id: 'io_left',    label: '口腔内 左側方',   hint: '左側の犬歯から第一大臼歯まで入れる',             guide: { t: 28, l: 8,  r: 8,  b: 28 } },
-  { id: 'io_up',      label: '上顎 咬合面',     hint: 'ミラーを使い、正中を中央線に。左右対称に写す',   guide: { t: 10, l: 18, r: 18, b: 10, round: 50 } },
-  { id: 'io_low',     label: '下顎 咬合面',     hint: 'ミラーを使い、正中を中央線に。舌が写らないように', guide: { t: 10, l: 18, r: 18, b: 10, round: 50 } },
-  { id: 'fc_rest',    label: '顔貌 正面（安静）', hint: '正面を向き、唇は閉じずに力を抜いた状態',        guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 } },
-  { id: 'fc_smile',   label: '顔貌 正面（スマイル）', hint: '上の前歯が見えるように笑ってもらう',        guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 } },
-  { id: 'fc_profile', label: '顔貌 側貌',       hint: '右向きの側貌。耳と目が同じ高さに来るように',     guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 }, noline: true }
+  { id: 'io_front',   label: '口腔内 正面',     hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に', intraoral: true, guide: { t: 28, l: 8,  r: 8,  b: 28 } },
+  { id: 'io_right',   label: '口腔内 右側方',   hint: '右側の犬歯から第一大臼歯まで入れる',             intraoral: true, guide: { t: 28, l: 8,  r: 8,  b: 28 } },
+  { id: 'io_left',    label: '口腔内 左側方',   hint: '左側の犬歯から第一大臼歯まで入れる',             intraoral: true, guide: { t: 28, l: 8,  r: 8,  b: 28 } },
+  { id: 'io_up',      label: '上顎 咬合面',     hint: 'ミラーを使い、正中を中央線に。左右対称に写す',   intraoral: true, guide: { t: 10, l: 18, r: 18, b: 10, round: 50 } },
+  { id: 'io_low',     label: '下顎 咬合面',     hint: 'ミラーを使い、正中を中央線に。舌が写らないように', intraoral: true, guide: { t: 10, l: 18, r: 18, b: 10, round: 50 } },
+  { id: 'fc_rest',    label: '顔貌 正面（安静）', hint: '正面を向き、唇は閉じずに力を抜いた状態',        zoom: 1, guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 } },
+  { id: 'fc_smile',   label: '顔貌 正面（スマイル）', hint: '上の前歯が見えるように笑ってもらう',        zoom: 1, guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 } },
+  { id: 'fc_profile', label: '顔貌 側貌',       hint: '右向きの側貌。耳と目が同じ高さに来るように',     zoom: 1, guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 }, noline: true }
 ];
 const VIEW_BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
+
+/* 口腔内で選べる倍率。既定は 4.6x（遠近感の歪みが最も小さい）。 */
+const ZOOM_STEPS = [
+  { v: 1.6, label: '1.6x', note: '解像度を優先' },
+  { v: 3.0, label: '3.0x', note: '解像度と歪みのバランス' },
+  { v: 4.6, label: '4.6x', note: '遠近感の歪みを最小に' }
+];
+const DEFAULT_IO_ZOOM = 4.6;
 
 const DRIVE_ROOT = '中川歯科_口腔内写真';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -62,7 +71,9 @@ function tx(store, mode, fn) {
     const s = t.objectStore(store);
     let out;
     try { out = fn(s); } catch (e) { reject(e); return; }
-    t.oncomplete = () => resolve(out && out.result !== undefined ? out.result : out);
+    // IDBRequest なら result を返す。レコードが無いときは undefined を返したいので
+    // 'result' in out で判定する（result === undefined でもリクエスト自体を返さない）。
+    t.oncomplete = () => resolve(out && typeof out === 'object' && 'result' in out ? out.result : out);
     t.onerror = () => reject(t.error);
     t.onabort = () => reject(t.error);
   }));
@@ -344,6 +355,51 @@ let capSessionId = null;
 let pendingBlob = null;
 let facing = 'environment';
 
+/* ズーム。端末のカメラが対応していればレンズ側（native）で寄せ、
+   足りないぶんは切り出し（digital）で補う。見えている画角＝保存される画角。 */
+let camTrack = null;
+let zoomCap = null;       // {min,max,step} または null
+let digitalZoom = 1;      // 切り出し倍率
+let ioZoom = DEFAULT_IO_ZOOM;
+
+async function applyZoom(target) {
+  digitalZoom = 1;
+  if (camTrack && zoomCap) {
+    const z = Math.min(Math.max(target, zoomCap.min), zoomCap.max);
+    try {
+      await camTrack.applyConstraints({ advanced: [{ zoom: z }] });
+      if (target > z) digitalZoom = target / z;
+    } catch (e) {
+      digitalZoom = target;
+    }
+  } else {
+    digitalZoom = target;
+  }
+  const v = $('#cam');
+  v.style.transform = digitalZoom > 1 ? `scale(${digitalZoom})` : '';
+}
+
+function drawZoomBar() {
+  const view = VIEW_BY_ID[capQueue[capIndex]];
+  const bar = $('#zoombar');
+  bar.hidden = !(view && view.intraoral);
+  if (bar.hidden) return;
+  bar.textContent = '';
+  for (const z of ZOOM_STEPS) {
+    const b = el('button', null, z.label);
+    b.type = 'button';
+    b.title = z.note;
+    b.setAttribute('aria-pressed', String(Math.abs(z.v - ioZoom) < 0.01));
+    b.addEventListener('click', async () => {
+      ioZoom = z.v;
+      await setMeta('ioZoom', z.v);
+      await applyZoom(z.v);
+      drawZoomBar();
+    });
+    bar.appendChild(b);
+  }
+}
+
 async function startCapture(sessionId, only = null) {
   capSessionId = sessionId;
   const shot = await dbGetAll('photos', 'sessionId', sessionId);
@@ -351,9 +407,10 @@ async function startCapture(sessionId, only = null) {
   capQueue = only ? [only] : VIEWS.filter(v => !taken.has(v.id)).map(v => v.id);
   if (capQueue.length === 0) capQueue = VIEWS.map(v => v.id);
   capIndex = 0;
+  ioZoom = await getMeta('ioZoom', DEFAULT_IO_ZOOM);
   show('capture', '規格撮影');
   await openCam();
-  drawCapStep();
+  await drawCapStep();
 }
 
 async function openCam() {
@@ -366,6 +423,9 @@ async function openCam() {
     const v = $('#cam');
     v.srcObject = camStream;
     await v.play().catch(() => {});
+    camTrack = camStream.getVideoTracks()[0];
+    const caps = camTrack.getCapabilities ? camTrack.getCapabilities() : {};
+    zoomCap = caps.zoom || null;
   } catch (e) {
     toast('カメラを開けませんでした。ブラウザの権限を確認してください');
   }
@@ -376,13 +436,21 @@ function stopCam() {
     camStream.getTracks().forEach(t => t.stop());
     camStream = null;
   }
+  camTrack = null;
+  zoomCap = null;
+  digitalZoom = 1;
   const v = $('#cam');
-  if (v) v.srcObject = null;
+  if (v) { v.srcObject = null; v.style.transform = ''; }
 }
 
-function drawCapStep() {
+async function drawCapStep() {
   if (capIndex >= capQueue.length) { finishCapture(); return; }
   const v = VIEW_BY_ID[capQueue[capIndex]];
+
+  /* アングルごとに倍率を自動で合わせる */
+  await applyZoom(v.intraoral ? ioZoom : (v.zoom || 1));
+  drawZoomBar();
+
   $('#capLabel').textContent = v.label;
   $('#capHint').textContent = v.hint;
 
@@ -418,12 +486,17 @@ function setReview(on) {
 $('#shutter').addEventListener('click', async () => {
   const v = $('#cam');
   if (!v.videoWidth) { toast('カメラの準備中です'); return; }
+  /* プレビューで見えている範囲（中央を digitalZoom 倍に切り出した領域）をそのまま保存する */
+  const sw = v.videoWidth / digitalZoom;
+  const sh = v.videoHeight / digitalZoom;
+  const sx = (v.videoWidth - sw) / 2;
+  const sy = (v.videoHeight - sh) / 2;
   const maxW = 1600;
-  const scale = Math.min(1, maxW / v.videoWidth);
+  const scale = Math.min(1, maxW / sw);
   const c = document.createElement('canvas');
-  c.width = Math.round(v.videoWidth * scale);
-  c.height = Math.round(v.videoHeight * scale);
-  c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+  c.width = Math.round(sw * scale);
+  c.height = Math.round(sh * scale);
+  c.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
   pendingBlob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.85));
   $('#shot').src = URL.createObjectURL(pendingBlob);
   setReview(true);
@@ -453,10 +526,10 @@ $('#keepBtn').addEventListener('click', async () => {
   if ($('#shot').src) URL.revokeObjectURL($('#shot').src);
   pendingBlob = null;
   capIndex++;
-  drawCapStep();
+  await drawCapStep();
 });
 
-$('#skipBtn').addEventListener('click', () => { capIndex++; drawCapStep(); });
+$('#skipBtn').addEventListener('click', async () => { capIndex++; await drawCapStep(); });
 
 function finishCapture() {
   stopCam();

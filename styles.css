@@ -277,6 +277,32 @@ button {
 }
 .guide.noline::after { display: none; }
 
+/* ズーム倍率（口腔内のみ表示。アングルごとに自動で切り替わる） */
+.zoombar {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .45);
+}
+.zoombar[hidden] { display: none !important; }
+.zoombar button {
+  min-width: 52px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .35);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.zoombar button[aria-pressed="true"] { color: #ffb257; }
+.zoombar button:disabled { opacity: .4; }
+
 .capbar {
   padding: 14px 16px calc(16px + var(--safe-b));
   background: var(--surface);
