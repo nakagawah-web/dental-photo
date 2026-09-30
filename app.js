@@ -6,16 +6,26 @@
    ============================================================ */
 
 /* ---------- 規格写真 8枚の定義 ---------- */
-/* intraoral: true の8枚は口腔内。zoom は撮影時に自動で適用する倍率。 */
+/* intraoral: 口腔内かどうか（倍率の自動切替に使う）
+   shape:    ガイドの線画の種類
+   mirror:   ミラー撮影の既定と反転軸。'h'=左右反転 / 'v'=上下反転 / null=ミラーなし */
 const VIEWS = [
-  { id: 'io_front',   label: '口腔内 正面',     hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に', intraoral: true, guide: { t: 28, l: 8,  r: 8,  b: 28 } },
-  { id: 'io_right',   label: '口腔内 右側方',   hint: '右側の犬歯から第一大臼歯まで入れる',             intraoral: true, guide: { t: 28, l: 8,  r: 8,  b: 28 } },
-  { id: 'io_left',    label: '口腔内 左側方',   hint: '左側の犬歯から第一大臼歯まで入れる',             intraoral: true, guide: { t: 28, l: 8,  r: 8,  b: 28 } },
-  { id: 'io_up',      label: '上顎 咬合面',     hint: 'ミラーを使い、正中を中央線に。左右対称に写す',   intraoral: true, guide: { t: 10, l: 18, r: 18, b: 10, round: 50 } },
-  { id: 'io_low',     label: '下顎 咬合面',     hint: 'ミラーを使い、正中を中央線に。舌が写らないように', intraoral: true, guide: { t: 10, l: 18, r: 18, b: 10, round: 50 } },
-  { id: 'fc_rest',    label: '顔貌 正面（安静）', hint: '正面を向き、唇は閉じずに力を抜いた状態',        zoom: 1, guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 } },
-  { id: 'fc_smile',   label: '顔貌 正面（スマイル）', hint: '上の前歯が見えるように笑ってもらう',        zoom: 1, guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 } },
-  { id: 'fc_profile', label: '顔貌 側貌',       hint: '右向きの側貌。耳と目が同じ高さに来るように',     zoom: 1, guide: { t: 6,  l: 26, r: 26, b: 6,  round: 45 }, noline: true }
+  { id: 'io_front', label: '口腔内 正面', hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に',
+    intraoral: true, shape: 'front', mirror: null },
+  { id: 'io_right', label: '口腔内 右側方', hint: '右側の犬歯から第一大臼歯まで入れる',
+    intraoral: true, shape: 'buccalR', mirror: { axis: 'h', on: false } },
+  { id: 'io_left', label: '口腔内 左側方', hint: '左側の犬歯から第一大臼歯まで入れる',
+    intraoral: true, shape: 'buccalL', mirror: { axis: 'h', on: false } },
+  { id: 'io_up', label: '上顎 咬合面', hint: 'ミラーを使い、正中を中央線に。左右対称に写す',
+    intraoral: true, shape: 'archUp', mirror: { axis: 'v', on: true } },
+  { id: 'io_low', label: '下顎 咬合面', hint: 'ミラーを使い、正中を中央線に。舌が写らないように',
+    intraoral: true, shape: 'archLow', mirror: { axis: 'v', on: true } },
+  { id: 'fc_rest', label: '顔貌 正面（安静）', hint: '正面を向き、唇は閉じずに力を抜いた状態',
+    zoom: 1, shape: 'faceFront', mirror: null },
+  { id: 'fc_smile', label: '顔貌 正面（スマイル）', hint: '上の前歯が見えるように笑ってもらう',
+    zoom: 1, shape: 'faceFront', mirror: null },
+  { id: 'fc_profile', label: '顔貌 側貌', hint: '右向きの側貌。耳と目が同じ高さに来るように',
+    zoom: 1, shape: 'faceSide', mirror: null }
 ];
 const VIEW_BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
 
@@ -26,6 +36,120 @@ const ZOOM_STEPS = [
   { v: 4.6, label: '4.6x', note: '遠近感の歪みを最小に' }
 ];
 const DEFAULT_IO_ZOOM = 4.6;
+
+/* ============================================================
+   ガイドの線画（SVG）
+   歯列の形に合わせた枠を重ねることで、毎回同じ画角で撮れるようにする。
+   viewBox は 400x300。実際の描画領域に合わせて拡大縮小される。
+   ============================================================ */
+
+/* 中切歯から第二大臼歯までの1象限ぶんの大きさ。rx=幅の半分、ry=長さの半分。 */
+const QUADRANT = [
+  { rx: 9, ry: 11 }, { rx: 8, ry: 10 }, { rx: 9, ry: 12 },
+  { rx: 10, ry: 11 }, { rx: 10, ry: 11 }, { rx: 14, ry: 13 }, { rx: 13, ry: 12 }
+];
+const FULL_ARCH = [...QUADRANT].slice().reverse().concat(QUADRANT);
+
+/* 咬合面のU字。up=true で前歯が上（∩）、false で前歯が下（∪）。 */
+function archShape(up) {
+  const cx = 200, cy = 150, A = 108, B = 96;
+  const total = FULL_ARCH.reduce((s, t) => s + t.rx * 2, 0);
+  let acc = 0, out = '';
+  for (const t of FULL_ARCH) {
+    const u = (acc + t.rx) / total;
+    acc += t.rx * 2;
+    const th = Math.PI + u * Math.PI;                 // 180°→360°
+    const x = cx + A * Math.cos(th);
+    const y = up ? cy + B * Math.sin(th) : cy - B * Math.sin(th);
+    const deg = th * 180 / Math.PI;
+    const rot = up ? deg - 90 : 90 - deg;             // 長軸を放射方向へ向ける
+    out += `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${t.rx}" ry="${t.ry}" `
+         + `transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
+  }
+  return out;
+}
+
+/* 正面観。上下の歯列が咬合平面で合わさった形。 */
+function frontShape() {
+  const mid = 200, occ = 150;
+  const upper = [19, 15, 14, 15, 15, 17, 16];   // 中切歯から外側への幅の半分
+  const lower = [11, 11, 14, 15, 15, 17, 16];
+  let out = '';
+  for (const side of [-1, 1]) {
+    let x = mid;
+    upper.forEach((w, i) => {
+      const h = i === 0 ? 46 : i === 1 ? 37 : i === 2 ? 41 : i < 5 ? 32 : 28;
+      const cxT = x + side * w;
+      out += `<rect x="${(cxT - w).toFixed(1)}" y="${(occ - h).toFixed(1)}" width="${(w * 2).toFixed(1)}" height="${h}" rx="5"/>`;
+      x += side * w * 2;
+    });
+    x = mid;
+    lower.forEach((w, i) => {
+      const h = i < 2 ? 27 : i === 2 ? 33 : 29;
+      const cxT = x + side * w;
+      out += `<rect x="${(cxT - w).toFixed(1)}" y="${(occ + 2).toFixed(1)}" width="${(w * 2).toFixed(1)}" height="${h}" rx="5"/>`;
+      x += side * w * 2;
+    });
+  }
+  out += `<line x1="60" y1="${occ}" x2="340" y2="${occ}" stroke-dasharray="6 6"/>`;
+  return out;
+}
+
+/* 側方観。手前の犬歯から奥の大臼歯へ、遠近で小さくなる並び。 */
+function buccalShape(toRight) {
+  const occ = 150;
+  /* 手前（犬歯）から奥（第二大臼歯）へ。遠近で奥ほど細く低くなる。 */
+  const teeth = [{ w: 34, hU: 44, hL: 30 }, { w: 30, hU: 38, hL: 31 }, { w: 30, hU: 36, hL: 32 },
+                 { w: 38, hU: 34, hL: 33 }, { w: 34, hU: 31, hL: 31 }, { w: 26, hU: 27, hL: 27 },
+                 { w: 22, hU: 24, hL: 24 }];
+  const span = teeth.reduce((s, t) => s + t.w, 0) + (teeth.length - 1) * 2;
+  let x = toRight ? 200 - span / 2 : 200 + span / 2;
+  const step = toRight ? 1 : -1;
+  let out = '';
+  for (const t of teeth) {
+    const left = step > 0 ? x : x - t.w;
+    out += `<rect x="${left.toFixed(1)}" y="${occ - t.hU}" width="${t.w}" height="${t.hU}" rx="5"/>`;
+    out += `<rect x="${left.toFixed(1)}" y="${occ + 2}" width="${t.w}" height="${t.hL}" rx="5"/>`;
+    x += step * (t.w + 2);
+  }
+  out += `<line x1="60" y1="${occ}" x2="340" y2="${occ}" stroke-dasharray="6 6"/>`;
+  return out;
+}
+
+/* 顔貌 正面。輪郭と、目・口の高さの目安線。 */
+function faceFrontShape() {
+  return `<ellipse cx="200" cy="150" rx="74" ry="102"/>`
+       + `<line x1="140" y1="122" x2="176" y2="122"/><line x1="224" y1="122" x2="260" y2="122"/>`
+       + `<line x1="168" y1="196" x2="232" y2="196" stroke-dasharray="5 5"/>`
+       + `<line x1="200" y1="40" x2="200" y2="260" stroke-dasharray="4 8"/>`;
+}
+
+/* 顔貌 側貌。右向きの頭部シルエット。 */
+function faceSideShape() {
+  return `<path d="M150 60 C110 70 92 110 96 148 C99 182 112 206 128 222 `
+       + `L134 250 M240 96 C262 110 272 132 271 152 C270 168 262 178 256 186 `
+       + `C252 192 254 200 250 208 C244 218 228 222 214 224 L212 246 `
+       + `M150 60 C180 46 218 60 240 96"/>`
+       + `<path d="M158 150 C150 140 146 158 152 166 C158 174 168 172 170 164"/>`
+       + `<line x1="96" y1="150" x2="272" y2="150" stroke-dasharray="4 8"/>`;
+}
+
+const SHAPES = {
+  front: frontShape,
+  buccalR: () => buccalShape(true),
+  buccalL: () => buccalShape(false),
+  archUp: () => archShape(true),
+  archLow: () => archShape(false),
+  faceFront: faceFrontShape,
+  faceSide: faceSideShape
+};
+
+function guideSVG(shape) {
+  const body = (SHAPES[shape] || frontShape)();
+  return `<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet" aria-hidden="true">`
+       + `<rect class="gframe" x="26" y="20" width="348" height="260" rx="4"/>`
+       + `<g class="gart">${body}</g></svg>`;
+}
 
 const DRIVE_ROOT = '中川歯科_口腔内写真';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -362,6 +486,17 @@ let zoomCap = null;       // {min,max,step} または null
 let digitalZoom = 1;      // 切り出し倍率
 let ioZoom = DEFAULT_IO_ZOOM;
 
+/* ミラー撮影。反転した像のまま保存すると左右や前後を読み違えるため、
+   撮影時に元へ戻す。プレビューも同じように反転させ、見たまま保存されるようにする。 */
+let mirrorOn = false;
+let mirrorAxis = null;
+
+function applyPreviewTransform() {
+  const sx = digitalZoom * (mirrorOn && mirrorAxis === 'h' ? -1 : 1);
+  const sy = digitalZoom * (mirrorOn && mirrorAxis === 'v' ? -1 : 1);
+  $('#cam').style.transform = (sx === 1 && sy === 1) ? '' : `scale(${sx}, ${sy})`;
+}
+
 async function applyZoom(target) {
   digitalZoom = 1;
   if (camTrack && zoomCap) {
@@ -375,8 +510,18 @@ async function applyZoom(target) {
   } else {
     digitalZoom = target;
   }
-  const v = $('#cam');
-  v.style.transform = digitalZoom > 1 ? `scale(${digitalZoom})` : '';
+  applyPreviewTransform();
+}
+
+function drawMirrorBtn() {
+  const view = VIEW_BY_ID[capQueue[capIndex]];
+  const b = $('#mirrorBtn');
+  b.hidden = !(view && view.mirror);
+  if (b.hidden) return;
+  b.setAttribute('aria-pressed', String(mirrorOn));
+  b.querySelector('.mlabel').textContent = mirrorOn
+    ? (mirrorAxis === 'v' ? 'ミラー（上下反転）' : 'ミラー（左右反転）')
+    : 'ミラーを使わない';
 }
 
 function drawZoomBar() {
@@ -447,20 +592,23 @@ async function drawCapStep() {
   if (capIndex >= capQueue.length) { finishCapture(); return; }
   const v = VIEW_BY_ID[capQueue[capIndex]];
 
-  /* アングルごとに倍率を自動で合わせる */
+  /* アングルごとに、ミラーの既定と倍率を自動で合わせる */
+  if (v.mirror) {
+    mirrorAxis = v.mirror.axis;
+    const saved = await getMeta('mirror_' + v.id, null);
+    mirrorOn = (saved === null || saved === undefined) ? v.mirror.on : saved;
+  } else {
+    mirrorAxis = null;
+    mirrorOn = false;
+  }
   await applyZoom(v.intraoral ? ioZoom : (v.zoom || 1));
   drawZoomBar();
+  drawMirrorBtn();
 
   $('#capLabel').textContent = v.label;
   $('#capHint').textContent = v.hint;
 
-  const g = $('#guide');
-  g.className = 'guide' + (v.noline ? ' noline' : '');
-  g.style.setProperty('--gt', v.guide.t + '%');
-  g.style.setProperty('--gl', v.guide.l + '%');
-  g.style.setProperty('--gr2', v.guide.r + '%');
-  g.style.setProperty('--gb', v.guide.b + '%');
-  g.style.setProperty('--gr', (v.guide.round || 8) + '%');
+  $('#guide').innerHTML = guideSVG(v.shape);
 
   const prog = $('#progress');
   prog.textContent = '';
@@ -496,7 +644,11 @@ $('#shutter').addEventListener('click', async () => {
   const c = document.createElement('canvas');
   c.width = Math.round(sw * scale);
   c.height = Math.round(sh * scale);
-  c.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  const ctx = c.getContext('2d');
+  /* ミラー像を元に戻してから保存する */
+  if (mirrorOn && mirrorAxis === 'h') { ctx.translate(c.width, 0); ctx.scale(-1, 1); }
+  if (mirrorOn && mirrorAxis === 'v') { ctx.translate(0, c.height); ctx.scale(1, -1); }
+  ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
   pendingBlob = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.85));
   $('#shot').src = URL.createObjectURL(pendingBlob);
   setReview(true);
@@ -530,6 +682,15 @@ $('#keepBtn').addEventListener('click', async () => {
 });
 
 $('#skipBtn').addEventListener('click', async () => { capIndex++; await drawCapStep(); });
+
+$('#mirrorBtn').addEventListener('click', async () => {
+  const v = VIEW_BY_ID[capQueue[capIndex]];
+  if (!v || !v.mirror) return;
+  mirrorOn = !mirrorOn;
+  await setMeta('mirror_' + v.id, mirrorOn);
+  applyPreviewTransform();
+  drawMirrorBtn();
+});
 
 function finishCapture() {
   stopCam();

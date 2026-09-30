@@ -256,26 +256,21 @@ button {
   inset: 0;
   pointer-events: none;
 }
-.guide::before {
-  content: "";
-  position: absolute;
-  border: 2px dashed rgba(255,255,255,.85);
-  border-radius: var(--gr, 8px);
-  top: var(--gt, 20%);
-  left: var(--gl, 12%);
-  right: var(--gr2, 12%);
-  bottom: var(--gb, 20%);
+.guide svg { width: 100%; height: 100%; display: block; }
+.guide .gframe {
+  fill: none;
+  stroke: rgba(0, 0, 0, .55);
+  stroke-width: 1.5;
 }
-.guide::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  background: rgba(255,255,255,.45);
+.guide .gart {
+  fill: none;
+  stroke: #29a8e0;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, .55));
 }
-.guide.noline::after { display: none; }
 
 /* ズーム倍率（口腔内のみ表示。アングルごとに自動で切り替わる） */
 .zoombar {
@@ -302,6 +297,27 @@ button {
 }
 .zoombar button[aria-pressed="true"] { color: #ffb257; }
 .zoombar button:disabled { opacity: .4; }
+
+/* ミラー撮影のトグル（頬側・咬合面のみ表示） */
+.mirrorbtn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px 7px 9px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .45);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.mirrorbtn[hidden] { display: none !important; }
+.mirrorbtn[aria-pressed="true"] { background: #1b3a4b; color: #7fd4ff; }
+.mirrorbtn .ic { width: 17px; height: 17px; }
 
 .capbar {
   padding: 14px 16px calc(16px + var(--safe-b));
