@@ -319,6 +319,18 @@ button {
 .mirrorbtn[aria-pressed="true"] { background: #1b3a4b; color: #7fd4ff; }
 .mirrorbtn .ic { width: 17px; height: 17px; }
 
+/* ファインダー直下の指示帯。撮影中でも読めるように大きく出す。 */
+.hintbar {
+  margin: 0;
+  padding: 11px 16px;
+  background: #0a9ad4;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .capbar {
   padding: 14px 16px calc(16px + var(--safe-b));
   background: var(--surface);

@@ -10,21 +10,29 @@
    shape:    ガイドの線画の種類
    mirror:   ミラー撮影の既定と反転軸。'h'=左右反転 / 'v'=上下反転 / null=ミラーなし */
 const VIEWS = [
-  { id: 'io_front', label: '口腔内 正面', hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に',
+  { id: 'io_front', label: '口腔内 正面', tip: '奥歯を噛み合わせます',
+    hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に',
     intraoral: true, shape: 'front', mirror: null },
-  { id: 'io_right', label: '口腔内 右側方', hint: '右側の犬歯から第一大臼歯まで入れる',
+  { id: 'io_right', label: '口腔内 右側方', tip: '右の奥歯がもっと見えるようにします',
+    hint: '中切歯から第二大臼歯まで入れる。正中の線に前歯を合わせる',
     intraoral: true, shape: 'buccalR', mirror: { axis: 'h', on: false } },
-  { id: 'io_left', label: '口腔内 左側方', hint: '左側の犬歯から第一大臼歯まで入れる',
+  { id: 'io_left', label: '口腔内 左側方', tip: '左の奥歯がもっと見えるようにします',
+    hint: '中切歯から第二大臼歯まで入れる。正中の線に前歯を合わせる',
     intraoral: true, shape: 'buccalL', mirror: { axis: 'h', on: false } },
-  { id: 'io_up', label: '上顎 咬合面', hint: 'ミラーを使い、正中を中央線に。左右対称に写す',
+  { id: 'io_up', label: '上顎 咬合面', tip: 'ミラーで上の歯列全体を写します',
+    hint: '正中を中央線に。左右対称に写す',
     intraoral: true, shape: 'archUp', mirror: { axis: 'v', on: true } },
-  { id: 'io_low', label: '下顎 咬合面', hint: 'ミラーを使い、正中を中央線に。舌が写らないように',
+  { id: 'io_low', label: '下顎 咬合面', tip: '舌が写らないようにします',
+    hint: '正中を中央線に。左右対称に写す',
     intraoral: true, shape: 'archLow', mirror: { axis: 'v', on: true } },
-  { id: 'fc_rest', label: '顔貌 正面（安静）', hint: '正面を向き、唇は閉じずに力を抜いた状態',
+  { id: 'fc_rest', label: '顔貌 正面（安静）', tip: '力を抜いて、正面を向きます',
+    hint: '唇は閉じず、自然に力を抜いた状態',
     zoom: 1, shape: 'faceFront', mirror: null },
-  { id: 'fc_smile', label: '顔貌 正面（スマイル）', hint: '上の前歯が見えるように笑ってもらう',
+  { id: 'fc_smile', label: '顔貌 正面（スマイル）', tip: '上の前歯が見えるように笑います',
+    hint: '正面を向いたまま、口角を上げてもらう',
     zoom: 1, shape: 'faceFront', mirror: null },
-  { id: 'fc_profile', label: '顔貌 側貌', hint: '右向きの側貌。耳と目が同じ高さに来るように',
+  { id: 'fc_profile', label: '顔貌 側貌', tip: '右を向いて、耳と目を水平にします',
+    hint: '右向きの側貌。耳と目が同じ高さに来るように',
     zoom: 1, shape: 'faceSide', mirror: null }
 ];
 const VIEW_BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
@@ -95,15 +103,22 @@ function frontShape() {
   return out;
 }
 
-/* 側方観。手前の犬歯から奥の大臼歯へ、遠近で小さくなる並び。 */
+/* 側方観。中切歯から第二大臼歯まで入れる。前歯は斜めから見るぶん細く、
+   奥へいくほど遠近で低くなる。 */
 function buccalShape(toRight) {
   const occ = 150;
-  /* 手前（犬歯）から奥（第二大臼歯）へ。遠近で奥ほど細く低くなる。 */
-  const teeth = [{ w: 34, hU: 44, hL: 30 }, { w: 30, hU: 38, hL: 31 }, { w: 30, hU: 36, hL: 32 },
-                 { w: 38, hU: 34, hL: 33 }, { w: 34, hU: 31, hL: 31 }, { w: 26, hU: 27, hL: 27 },
-                 { w: 22, hU: 24, hL: 24 }];
+  const teeth = [
+    { w: 20, hU: 48, hL: 30 },  // 中切歯
+    { w: 20, hU: 41, hL: 31 },  // 側切歯
+    { w: 34, hU: 50, hL: 34 },  // 犬歯
+    { w: 36, hU: 41, hL: 35 },  // 第一小臼歯
+    { w: 34, hU: 37, hL: 34 },  // 第二小臼歯
+    { w: 40, hU: 34, hL: 33 },  // 第一大臼歯
+    { w: 30, hU: 29, hL: 28 }   // 第二大臼歯
+  ];
   const span = teeth.reduce((s, t) => s + t.w, 0) + (teeth.length - 1) * 2;
-  let x = toRight ? 200 - span / 2 : 200 + span / 2;
+  const startX = toRight ? 200 - span / 2 : 200 + span / 2;
+  let x = startX;
   const step = toRight ? 1 : -1;
   let out = '';
   for (const t of teeth) {
@@ -112,7 +127,9 @@ function buccalShape(toRight) {
     out += `<rect x="${left.toFixed(1)}" y="${occ + 2}" width="${t.w}" height="${t.hL}" rx="5"/>`;
     x += step * (t.w + 2);
   }
-  out += `<line x1="60" y1="${occ}" x2="340" y2="${occ}" stroke-dasharray="6 6"/>`;
+  out += `<line x1="52" y1="${occ}" x2="348" y2="${occ}" stroke-dasharray="6 6"/>`;
+  /* 正中の位置。中切歯の内側の端に合わせる。 */
+  out += `<line x1="${startX.toFixed(1)}" y1="${occ - 58}" x2="${startX.toFixed(1)}" y2="${occ + 42}" stroke-dasharray="4 7"/>`;
   return out;
 }
 
@@ -605,6 +622,7 @@ async function drawCapStep() {
   drawZoomBar();
   drawMirrorBtn();
 
+  $('#hintbar').textContent = v.tip || '';
   $('#capLabel').textContent = v.label;
   $('#capHint').textContent = v.hint;
 
