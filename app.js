@@ -51,55 +51,94 @@ const DEFAULT_IO_ZOOM = 4.6;
    viewBox は 400x300。実際の描画領域に合わせて拡大縮小される。
    ============================================================ */
 
-/* 中切歯から第二大臼歯までの1象限ぶんの大きさ。rx=幅の半分、ry=長さの半分。 */
+/* 中切歯から第二大臼歯まで、1象限ぶんの歯の大きさ。
+   rx=近遠心幅の半分、ry=頬舌径の半分、k=角の丸み。前歯は細長く、臼歯は四角い。 */
 const QUADRANT = [
-  { rx: 9, ry: 11 }, { rx: 8, ry: 10 }, { rx: 9, ry: 12 },
-  { rx: 10, ry: 11 }, { rx: 10, ry: 11 }, { rx: 14, ry: 13 }, { rx: 13, ry: 12 }
+  { rx: 16, ry: 10, k: 4 },   // 中切歯
+  { rx: 14, ry: 9,  k: 4 },   // 側切歯
+  { rx: 15, ry: 13, k: 6 },   // 犬歯
+  { rx: 16, ry: 17, k: 6 },   // 第一小臼歯
+  { rx: 16, ry: 18, k: 6 },   // 第二小臼歯
+  { rx: 23, ry: 23, k: 8 },   // 第一大臼歯
+  { rx: 22, ry: 22, k: 8 }    // 第二大臼歯
 ];
 const FULL_ARCH = [...QUADRANT].slice().reverse().concat(QUADRANT);
 
-/* 咬合面のU字。up=true で前歯が上（∩）、false で前歯が下（∪）。 */
+/* 咬合面。up=true で前歯が上（上顎）、false で前歯が下（下顎）。
+   歯列が枠いっぱいに収まるよう、弧の上下中央を枠の中心に合わせる。 */
 function archShape(up) {
-  const cx = 200, cy = 150, A = 108, B = 96;
+  const cx = 200;
+  const R = 115;                                    // 前方の弧の半径（歯列弓の幅の半分）
+  const sgn = up ? 1 : -1;
+  const curveLen = Math.PI * R;
   const total = FULL_ARCH.reduce((s, t) => s + t.rx * 2, 0);
+  const L = Math.max(24, (total - curveLen) / 2);   // 臼歯部の直線部。歯列が過不足なく収まる長さ
+  /* 描いたときの上下の張り出しから、枠の中央に来る位置を求める */
+  const ryAnt = QUADRANT[0].ry, rxMol = QUADRANT[QUADRANT.length - 1].rx;
+  const yC = 150 + sgn * ((R + ryAnt) - (L + rxMol)) / 2;
+
   let acc = 0, out = '';
   for (const t of FULL_ARCH) {
-    const u = (acc + t.rx) / total;
+    const s = acc + t.rx;              // 歯の中心までの道のり
     acc += t.rx * 2;
-    const th = Math.PI + u * Math.PI;                 // 180°→360°
-    const x = cx + A * Math.cos(th);
-    const y = up ? cy + B * Math.sin(th) : cy - B * Math.sin(th);
-    const deg = th * 180 / Math.PI;
-    const rot = up ? deg - 90 : 90 - deg;             // 長軸を放射方向へ向ける
-    out += `<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="${t.rx}" ry="${t.ry}" `
-         + `transform="rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
+    let x, y, rot;
+    if (s < L) {                       // 左の臼歯部（ほぼ平行）
+      x = cx - R;
+      y = yC + sgn * (L - s);
+      rot = 90;
+    } else if (s < L + curveLen) {     // 前方の弧
+      const phi = Math.PI + (s - L) / R;
+      x = cx + R * Math.cos(phi);
+      y = yC + sgn * R * Math.sin(phi);
+      rot = Math.atan2(sgn * Math.cos(phi), -Math.sin(phi)) * 180 / Math.PI;
+    } else {                           // 右の臼歯部
+      x = cx + R;
+      y = yC + sgn * (s - L - curveLen);
+      rot = 90;
+    }
+    out += `<rect x="${-t.rx}" y="${-t.ry}" width="${t.rx * 2}" height="${t.ry * 2}" rx="${t.k}" `
+         + `transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})"/>`;
   }
+  out += `<line x1="${cx}" y1="24" x2="${cx}" y2="276" stroke-dasharray="4 9"/>`;
   return out;
 }
 
-/* 正面観。上下の歯列が咬合平面で合わさった形。 */
+/* 正面観。上顎前歯が大きく、後方へいくほど小さく、奥へ回り込んで見える。
+   切縁は中切歯がいちばん下がり、後方へゆるやかに上がる。 */
 function frontShape() {
-  const mid = 200, occ = 150;
-  const upper = [19, 15, 14, 15, 15, 17, 16];   // 中切歯から外側への幅の半分
-  const lower = [11, 11, 14, 15, 15, 17, 16];
+  const mid = 200, occ = 152;
+  /* w=歯の幅、h=歯冠の長さ、dy=切縁の高さのずれ（マイナスで上がる） */
+  const upper = [
+    { w: 34, h: 54, dy: 0 },    // 中切歯
+    { w: 27, h: 44, dy: -5 },   // 側切歯
+    { w: 26, h: 50, dy: -1 },   // 犬歯
+    { w: 24, h: 38, dy: -8 },   // 第一小臼歯
+    { w: 21, h: 34, dy: -13 },  // 第二小臼歯
+    { w: 19, h: 29, dy: -19 }   // 第一大臼歯
+  ];
+  const lower = [
+    { w: 19, h: 30, dy: 0 }, { w: 21, h: 31, dy: 0 }, { w: 25, h: 37, dy: 2 },
+    { w: 24, h: 33, dy: 5 }, { w: 21, h: 29, dy: 9 }, { w: 19, h: 26, dy: 14 }
+  ];
   let out = '';
   for (const side of [-1, 1]) {
     let x = mid;
-    upper.forEach((w, i) => {
-      const h = i === 0 ? 46 : i === 1 ? 37 : i === 2 ? 41 : i < 5 ? 32 : 28;
-      const cxT = x + side * w;
-      out += `<rect x="${(cxT - w).toFixed(1)}" y="${(occ - h).toFixed(1)}" width="${(w * 2).toFixed(1)}" height="${h}" rx="5"/>`;
-      x += side * w * 2;
-    });
+    for (const t of upper) {
+      const left = side > 0 ? x : x - t.w;
+      out += `<rect x="${left.toFixed(1)}" y="${(occ + t.dy - t.h).toFixed(1)}" `
+           + `width="${t.w}" height="${t.h}" rx="7"/>`;
+      x += side * t.w;
+    }
     x = mid;
-    lower.forEach((w, i) => {
-      const h = i < 2 ? 27 : i === 2 ? 33 : 29;
-      const cxT = x + side * w;
-      out += `<rect x="${(cxT - w).toFixed(1)}" y="${(occ + 2).toFixed(1)}" width="${(w * 2).toFixed(1)}" height="${h}" rx="5"/>`;
-      x += side * w * 2;
-    });
+    for (const t of lower) {
+      const left = side > 0 ? x : x - t.w;
+      out += `<rect x="${left.toFixed(1)}" y="${(occ + t.dy + 3).toFixed(1)}" `
+           + `width="${t.w}" height="${t.h}" rx="6"/>`;
+      x += side * t.w;
+    }
   }
-  out += `<line x1="60" y1="${occ}" x2="340" y2="${occ}" stroke-dasharray="6 6"/>`;
+  out += `<line x1="200" y1="26" x2="200" y2="274" stroke-dasharray="4 9"/>`;
+  out += `<line x1="46" y1="${occ}" x2="354" y2="${occ}" stroke-dasharray="6 7"/>`;
   return out;
 }
 
