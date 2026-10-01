@@ -370,30 +370,123 @@ button {
 .progress i.done { background: var(--accent); }
 .progress i.cur { background: #7fa3b3; }
 
-/* ---------- grid ---------- */
-.grid {
+/* ---------- 患者番号の確認 ---------- */
+.warnbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 10px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid #d9be7a;
+  border-radius: var(--radius);
+  background: #fdf5e3;
+  color: #6b4e00;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.warnbar[hidden] { display: none !important; }
+.warnbar > .ic { flex: none; width: 18px; height: 18px; margin-top: 1px; color: #b07c00; }
+.warnbar span { flex: 1; }
+.warnbar b { display: block; font-size: 16px; margin-top: 2px; }
+.warnclose {
+  flex: none;
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6b4e00;
+}
+
+/* ---------- 撮影スロット ---------- */
+.slotgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
   margin-top: 12px;
 }
-.cell {
+.slot {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
+  text-align: left;
+  color: inherit;
+  font: inherit;
 }
-.cell img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: #e9ebe9; }
-.cell .ph {
+.slot:active { opacity: .8; }
+.slot .shot-img,
+.slot .ph {
   width: 100%;
   aspect-ratio: 4/3;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  font-size: 12.5px;
+  display: block;
+  object-fit: cover;
   background: #eef0ee;
 }
-.cell .cap { padding: 7px 9px; font-size: 12.5px; }
+.slot .ph { position: relative; }
+.slot .ph .guide { position: absolute; inset: 0; }
+.slot .ph .guide svg { width: 100%; height: 100%; }
+.slot .ph .gart { stroke-width: 5; filter: none; }
+.slot .cap {
+  display: block;
+  padding: 5px 7px 7px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.slot .num {
+  display: inline-block;
+  min-width: 15px;
+  margin-right: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.slot .add {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 999px;
+  background: #1b9ad4;
+  color: #fff;
+}
+.slot .add .ic { width: 15px; height: 15px; stroke-width: 2.6; }
+.slot.taken .add { background: #1f5c3d; }
+
+.bigbtn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: #0a9ad4;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.bigbtn:disabled { background: var(--line); color: var(--muted); }
+.bigbtn.dark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  background: var(--accent);
+  font-size: 15px;
+}
+.bigbtn.dark:disabled { background: var(--line); color: var(--muted); }
 
 /* ---------- compare ---------- */
 .viewpicker {

@@ -83,15 +83,20 @@
 
   <!-- 来院詳細 -->
   <section id="view-session" class="view" hidden>
-    <div id="sessionHead" class="pathead"></div>
-    <div id="sessionGrid" class="grid"></div>
-    <div class="btnrow">
-      <button id="resumeBtn">未撮影の続きを撮る</button>
-      <button id="syncBtn" class="primary">
-        <svg viewBox="0 0 24 24" class="ic"><path d="M21 12a9 9 0 0 1-9 9c-2.5 0-4.8-1-6.4-2.7M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.4 2.7"/><path d="M21 3v6h-6M3 21v-6h6"/></svg>
-        Driveへ同期
+    <div id="warnBar" class="warnbar">
+      <svg viewBox="0 0 24 24" class="ic"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>続ける前に患者番号をご確認ください。<b id="warnNo"></b></span>
+      <button id="warnClose" class="warnclose" aria-label="閉じる">
+        <svg viewBox="0 0 24 24" class="ic"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
+    <div id="sessionHead" class="pathead"></div>
+    <div id="sessionGrid" class="slotgrid"></div>
+    <button id="captureBtn" class="bigbtn">撮影する</button>
+    <button id="syncBtn" class="bigbtn dark">
+      <svg viewBox="0 0 24 24" class="ic"><path d="M21 12a9 9 0 0 1-9 9c-2.5 0-4.8-1-6.4-2.7M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.4 2.7"/><path d="M21 3v6h-6M3 21v-6h6"/></svg>
+      Driveへ同期
+    </button>
     <button id="deleteSessionBtn" class="linkbtn danger">この来院の記録を削除</button>
   </section>
 

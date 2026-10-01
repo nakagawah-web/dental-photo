@@ -231,10 +231,10 @@ const SHAPES = {
   faceSide: faceSideShape
 };
 
-function guideSVG(shape) {
+function guideSVG(shape, withFrame = true) {
   const body = (SHAPES[shape] || frontShape)();
   return `<svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid meet" aria-hidden="true">`
-       + `<rect class="gframe" x="26" y="20" width="348" height="260" rx="4"/>`
+       + (withFrame ? `<rect class="gframe" x="26" y="20" width="348" height="260" rx="4"/>` : '')
        + `<g class="gart">${body}</g></svg>`;
 }
 
@@ -832,33 +832,64 @@ async function renderSession(sessionId, push = true) {
   const photos = await dbGetAll('photos', 'sessionId', sessionId);
   const byView = Object.fromEntries(photos.map(x => [x.view, x]));
 
+  /* 患者番号の確認。症例を取り違えないよう、撮り始める前に目に入る位置に置く。 */
+  const warn = $('#warnBar');
+  warn.hidden = !!warnDismissed[sessionId];
+  $('#warnNo').textContent = p ? `患者番号 ${p.no}${p.name ? '　' + p.name : ''}` : '';
+
   freeURLs();
   const grid = $('#sessionGrid');
   grid.textContent = '';
-  for (const v of VIEWS) {
-    const cell = el('div', 'cell');
+  VIEWS.forEach((v, i) => {
     const ph = byView[v.id];
+    const cell = el('button', 'slot' + (ph ? ' taken' : ''));
+    cell.type = 'button';
+
     if (ph) {
       const img = document.createElement('img');
+      img.className = 'shot-img';
       img.src = srcOf(ph.blob);
       img.alt = v.label;
       img.loading = 'lazy';
       cell.appendChild(img);
     } else {
-      const d = el('div', 'ph', '未撮影');
-      cell.appendChild(d);
+      const box = el('div', 'ph');
+      const g = el('div', 'guide');
+      g.innerHTML = guideSVG(v.shape, false);
+      box.appendChild(g);
+      cell.appendChild(box);
     }
-    const cap = el('div', 'cap', v.label);
-    if (ph && ph.driveFileId) cap.textContent = v.label + '（同期済）';
+
+    const add = el('span', 'add');
+    add.innerHTML = ph
+      ? '<svg viewBox="0 0 24 24" class="ic"><path d="M20 6 9 17l-5-5"/></svg>'
+      : '<svg viewBox="0 0 24 24" class="ic"><path d="M12 5v14M5 12h14"/></svg>';
+    cell.appendChild(add);
+
+    const cap = el('span', 'cap');
+    cap.appendChild(el('span', 'num', String(i + 1)));
+    cap.appendChild(document.createTextNode(v.label + (ph && ph.driveFileId ? '（同期済）' : '')));
     cell.appendChild(cap);
+
     cell.addEventListener('click', () => startCapture(sessionId, v.id));
     grid.appendChild(cell);
-  }
+  });
+
+  const remain = VIEWS.filter(v => !byView[v.id]).length;
+  const btn = $('#captureBtn');
+  btn.textContent = remain === 0 ? 'すべて撮影済み（撮り直す）' : `撮影する（残り ${remain} 枚）`;
 
   show('session', `${p ? (p.name || p.no) : ''} ${fmtDate(s.date)}`, push);
 }
 
-$('#resumeBtn').addEventListener('click', () => startCapture(state.sessionId));
+/* 患者番号の確認バナーを閉じたかどうか。来院ごとに覚える。 */
+const warnDismissed = {};
+$('#warnClose').addEventListener('click', () => {
+  warnDismissed[state.sessionId] = true;
+  $('#warnBar').hidden = true;
+});
+
+$('#captureBtn').addEventListener('click', () => startCapture(state.sessionId));
 
 $('#deleteSessionBtn').addEventListener('click', async () => {
   if (!confirm('この来院の写真と記録を端末から削除します。Drive に同期済みの写真は残ります。よろしいですか。')) return;
