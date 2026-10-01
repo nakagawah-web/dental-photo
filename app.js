@@ -51,16 +51,50 @@ const DEFAULT_IO_ZOOM = 4.6;
    viewBox は 400x300。実際の描画領域に合わせて拡大縮小される。
    ============================================================ */
 
+/* 歯種ごとの輪郭。-1〜1 の正方形に正規化してあり、使うときに拡大・回転する。
+
+   咬合面用（OCC）: y が -1 で頬側、+1 で舌側。小臼歯・大臼歯には溝を入れる。
+   唇頬側用（FAC）: y が -1 で歯頸部、+1 で切縁・咬合面。 */
+const OCC = {
+  incisor: ['M -1 0.08 C -0.95 -0.78, 0.95 -0.78, 1 0.08 C 0.76 0.88, -0.76 0.88, -1 0.08 Z'],
+  canine: ['M 0 -1 C 0.56 -0.86, 0.96 -0.3, 0.95 0.16 C 0.8 0.86, -0.8 0.86, -0.95 0.16 C -0.96 -0.3, -0.56 -0.86, 0 -1 Z'],
+  premolar: [
+    'M -0.9 -0.34 C -0.86 -0.92, 0.86 -0.92, 0.9 -0.34 C 0.96 0.46, 0.6 0.96, 0 0.96 C -0.6 0.96, -0.96 0.46, -0.9 -0.34 Z',
+    'M -0.52 0.04 C -0.2 0.22, 0.2 0.22, 0.52 0.04'
+  ],
+  molar: [
+    'M -0.86 -0.68 C -0.8 -0.94, 0.8 -0.94, 0.88 -0.6 C 0.98 -0.2, 0.98 0.46, 0.85 0.76 C 0.6 0.98, -0.6 0.98, -0.86 0.72 C -0.98 0.4, -0.95 -0.3, -0.86 -0.68 Z',
+    'M -0.62 -0.06 C -0.2 0.16, 0.2 -0.16, 0.62 0.06',
+    'M -0.14 -0.02 L -0.22 -0.84',
+    'M 0.12 0.02 L 0.2 0.86'
+  ]
+};
+const FAC = {
+  incisor: ['M -0.56 -1 C -0.73 -0.58, -0.9 0.12, -0.92 0.6 C -0.9 0.9, -0.5 1, 0 1 C 0.5 1, 0.9 0.9, 0.92 0.6 C 0.9 0.12, 0.73 -0.58, 0.56 -1 Z'],
+  canine: ['M -0.5 -1 C -0.68 -0.58, -0.88 0, -0.9 0.4 C -0.85 0.74, -0.4 0.88, 0 1 C 0.4 0.88, 0.85 0.74, 0.9 0.4 C 0.88 0, 0.68 -0.58, 0.5 -1 Z'],
+  premolar: ['M -0.56 -1 C -0.73 -0.58, -0.9 -0.1, -0.9 0.34 C -0.85 0.74, -0.35 1, 0 1 C 0.35 1, 0.85 0.74, 0.9 0.34 C 0.9 -0.1, 0.73 -0.58, 0.56 -1 Z'],
+  molar: ['M -0.6 -1 C -0.78 -0.58, -0.95 -0.1, -0.95 0.34 C -0.9 0.7, -0.6 0.95, -0.35 0.84 C -0.12 0.72, 0.12 0.72, 0.35 0.84 C 0.6 0.95, 0.9 0.7, 0.95 0.34 C 0.95 -0.1, 0.78 -0.58, 0.6 -1 Z']
+};
+
+/* 正規化した歯を、指定の位置・大きさ・向きで置く。
+   線の太さを一定に保つため vector-effect を使う。 */
+function tooth(set, type, x, y, w, h, rot, flipY) {
+  const sx = w / 2, sy = (flipY ? -1 : 1) * h / 2;
+  return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)}) scale(${sx.toFixed(2)} ${sy.toFixed(2)})">`
+       + set[type].map(d => `<path d="${d}" vector-effect="non-scaling-stroke"/>`).join('')
+       + `</g>`;
+}
+
 /* 中切歯から第二大臼歯まで、1象限ぶんの歯の大きさ。
-   rx=近遠心幅の半分、ry=頬舌径の半分、k=角の丸み。前歯は細長く、臼歯は四角い。 */
+   rx=近遠心幅の半分、ry=頬舌径の半分。 */
 const QUADRANT = [
-  { rx: 16, ry: 10, k: 4 },   // 中切歯
-  { rx: 14, ry: 9,  k: 4 },   // 側切歯
-  { rx: 15, ry: 13, k: 6 },   // 犬歯
-  { rx: 16, ry: 17, k: 6 },   // 第一小臼歯
-  { rx: 16, ry: 18, k: 6 },   // 第二小臼歯
-  { rx: 23, ry: 23, k: 8 },   // 第一大臼歯
-  { rx: 22, ry: 22, k: 8 }    // 第二大臼歯
+  { rx: 16, ry: 14, t: 'incisor' },   // 中切歯
+  { rx: 14, ry: 13, t: 'incisor' },   // 側切歯
+  { rx: 15, ry: 16, t: 'canine' },    // 犬歯
+  { rx: 16, ry: 17, t: 'premolar' },  // 第一小臼歯
+  { rx: 16, ry: 18, t: 'premolar' },  // 第二小臼歯
+  { rx: 23, ry: 23, t: 'molar' },     // 第一大臼歯
+  { rx: 22, ry: 22, t: 'molar' }      // 第二大臼歯
 ];
 const FULL_ARCH = [...QUADRANT].slice().reverse().concat(QUADRANT);
 
@@ -85,19 +119,19 @@ function archShape(up) {
     if (s < L) {                       // 左の臼歯部（ほぼ平行）
       x = cx - R;
       y = yC + sgn * (L - s);
-      rot = 90;
+      rot = -90;
     } else if (s < L + curveLen) {     // 前方の弧
       const phi = Math.PI + (s - L) / R;
       x = cx + R * Math.cos(phi);
       y = yC + sgn * R * Math.sin(phi);
-      rot = Math.atan2(sgn * Math.cos(phi), -Math.sin(phi)) * 180 / Math.PI;
+      rot = Math.atan2(Math.cos(phi), -Math.sin(phi)) * 180 / Math.PI;
     } else {                           // 右の臼歯部
       x = cx + R;
       y = yC + sgn * (s - L - curveLen);
       rot = 90;
     }
-    out += `<rect x="${-t.rx}" y="${-t.ry}" width="${t.rx * 2}" height="${t.ry * 2}" rx="${t.k}" `
-         + `transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${rot.toFixed(1)})"/>`;
+    if (!up) rot += 180;               // 下顎は舌側が逆向きになる
+    out += tooth(OCC, t.t, x, y, t.rx * 2, t.ry * 2, rot, false);
   }
   out += `<line x1="${cx}" y1="24" x2="${cx}" y2="276" stroke-dasharray="4 9"/>`;
   return out;
@@ -109,31 +143,28 @@ function frontShape() {
   const mid = 200, occ = 152;
   /* w=歯の幅、h=歯冠の長さ、dy=切縁の高さのずれ（マイナスで上がる） */
   const upper = [
-    { w: 34, h: 54, dy: 0 },    // 中切歯
-    { w: 27, h: 44, dy: -5 },   // 側切歯
-    { w: 26, h: 50, dy: -1 },   // 犬歯
-    { w: 24, h: 38, dy: -8 },   // 第一小臼歯
-    { w: 21, h: 34, dy: -13 },  // 第二小臼歯
-    { w: 19, h: 29, dy: -19 }   // 第一大臼歯
+    { w: 34, h: 54, dy: 0,   t: 'incisor' },   // 中切歯
+    { w: 27, h: 44, dy: -5,  t: 'incisor' },   // 側切歯
+    { w: 26, h: 50, dy: -1,  t: 'canine' },    // 犬歯
+    { w: 24, h: 38, dy: -8,  t: 'premolar' },  // 第一小臼歯
+    { w: 21, h: 34, dy: -13, t: 'premolar' },  // 第二小臼歯
+    { w: 19, h: 29, dy: -19, t: 'molar' }      // 第一大臼歯
   ];
   const lower = [
-    { w: 19, h: 30, dy: 0 }, { w: 21, h: 31, dy: 0 }, { w: 25, h: 37, dy: 2 },
-    { w: 24, h: 33, dy: 5 }, { w: 21, h: 29, dy: 9 }, { w: 19, h: 26, dy: 14 }
+    { w: 19, h: 30, dy: 0,  t: 'incisor' }, { w: 21, h: 31, dy: 0,  t: 'incisor' },
+    { w: 25, h: 37, dy: 2,  t: 'canine' },  { w: 24, h: 33, dy: 5,  t: 'premolar' },
+    { w: 21, h: 29, dy: 9,  t: 'premolar' }, { w: 19, h: 26, dy: 14, t: 'molar' }
   ];
   let out = '';
   for (const side of [-1, 1]) {
     let x = mid;
-    for (const t of upper) {
-      const left = side > 0 ? x : x - t.w;
-      out += `<rect x="${left.toFixed(1)}" y="${(occ + t.dy - t.h).toFixed(1)}" `
-           + `width="${t.w}" height="${t.h}" rx="7"/>`;
+    for (const t of upper) {                 // 上顎は歯頸部が上、切縁が下
+      out += tooth(FAC, t.t, x + side * t.w / 2, occ + t.dy - t.h / 2, t.w, t.h, 0, false);
       x += side * t.w;
     }
     x = mid;
-    for (const t of lower) {
-      const left = side > 0 ? x : x - t.w;
-      out += `<rect x="${left.toFixed(1)}" y="${(occ + t.dy + 3).toFixed(1)}" `
-           + `width="${t.w}" height="${t.h}" rx="6"/>`;
+    for (const t of lower) {                 // 下顎は上下を反転
+      out += tooth(FAC, t.t, x + side * t.w / 2, occ + t.dy + 3 + t.h / 2, t.w, t.h, 0, true);
       x += side * t.w;
     }
   }
@@ -147,24 +178,24 @@ function frontShape() {
 function buccalShape(toRight) {
   const occ = 150;
   const teeth = [
-    { w: 20, hU: 48, hL: 30 },  // 中切歯
-    { w: 20, hU: 41, hL: 31 },  // 側切歯
-    { w: 34, hU: 50, hL: 34 },  // 犬歯
-    { w: 36, hU: 41, hL: 35 },  // 第一小臼歯
-    { w: 34, hU: 37, hL: 34 },  // 第二小臼歯
-    { w: 40, hU: 34, hL: 33 },  // 第一大臼歯
-    { w: 30, hU: 29, hL: 28 }   // 第二大臼歯
+    { w: 20, hU: 48, hL: 30, t: 'incisor' },   // 中切歯
+    { w: 20, hU: 41, hL: 31, t: 'incisor' },   // 側切歯
+    { w: 34, hU: 50, hL: 34, t: 'canine' },    // 犬歯
+    { w: 36, hU: 41, hL: 35, t: 'premolar' },  // 第一小臼歯
+    { w: 34, hU: 37, hL: 34, t: 'premolar' },  // 第二小臼歯
+    { w: 40, hU: 34, hL: 33, t: 'molar' },     // 第一大臼歯
+    { w: 30, hU: 29, hL: 28, t: 'molar' }      // 第二大臼歯
   ];
-  const span = teeth.reduce((s, t) => s + t.w, 0) + (teeth.length - 1) * 2;
+  const span = teeth.reduce((s, t) => s + t.w, 0);
   const startX = toRight ? 200 - span / 2 : 200 + span / 2;
   let x = startX;
   const step = toRight ? 1 : -1;
   let out = '';
   for (const t of teeth) {
-    const left = step > 0 ? x : x - t.w;
-    out += `<rect x="${left.toFixed(1)}" y="${occ - t.hU}" width="${t.w}" height="${t.hU}" rx="5"/>`;
-    out += `<rect x="${left.toFixed(1)}" y="${occ + 2}" width="${t.w}" height="${t.hL}" rx="5"/>`;
-    x += step * (t.w + 2);
+    const cxT = x + step * t.w / 2;
+    out += tooth(FAC, t.t, cxT, occ - t.hU / 2, t.w, t.hU, 0, false);
+    out += tooth(FAC, t.t, cxT, occ + 3 + t.hL / 2, t.w, t.hL, 0, true);
+    x += step * t.w;
   }
   out += `<line x1="52" y1="${occ}" x2="348" y2="${occ}" stroke-dasharray="6 6"/>`;
   /* 正中の位置。中切歯の内側の端に合わせる。 */
