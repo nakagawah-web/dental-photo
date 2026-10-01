@@ -573,15 +573,22 @@ let zoomCap = null;       // {min,max,step} または null
 let digitalZoom = 1;      // 切り出し倍率
 let ioZoom = DEFAULT_IO_ZOOM;
 
-/* ミラー撮影。反転した像のまま保存すると左右や前後を読み違えるため、
-   撮影時に元へ戻す。プレビューも同じように反転させ、見たまま保存されるようにする。 */
+/* ミラー撮影。
+   プレビューはミラーに映ったままの向きで出す。そのほうが手を動かした向きと
+   画面の動きが一致して狙いやすい。代わりに見本の線画を同じ向きへ反転させ、
+   画面上で重ねられるようにする。保存するときに像を元へ戻す。 */
 let mirrorOn = false;
 let mirrorAxis = null;
 
 function applyPreviewTransform() {
-  const sx = digitalZoom * (mirrorOn && mirrorAxis === 'h' ? -1 : 1);
-  const sy = digitalZoom * (mirrorOn && mirrorAxis === 'v' ? -1 : 1);
-  $('#cam').style.transform = (sx === 1 && sy === 1) ? '' : `scale(${sx}, ${sy})`;
+  $('#cam').style.transform = digitalZoom > 1 ? `scale(${digitalZoom})` : '';
+}
+
+/* 見本の線画を、ミラーに映るのと同じ向きへ反転する */
+function applyGuideTransform() {
+  const sx = (mirrorOn && mirrorAxis === 'h') ? -1 : 1;
+  const sy = (mirrorOn && mirrorAxis === 'v') ? -1 : 1;
+  $('#guide').style.transform = (sx === 1 && sy === 1) ? '' : `scale(${sx}, ${sy})`;
 }
 
 async function applyZoom(target) {
@@ -697,6 +704,7 @@ async function drawCapStep() {
   $('#capHint').textContent = v.hint;
 
   $('#guide').innerHTML = guideSVG(v.shape);
+  applyGuideTransform();
 
   const prog = $('#progress');
   prog.textContent = '';
@@ -776,7 +784,7 @@ $('#mirrorBtn').addEventListener('click', async () => {
   if (!v || !v.mirror) return;
   mirrorOn = !mirrorOn;
   await setMeta('mirror_' + v.id, mirrorOn);
-  applyPreviewTransform();
+  applyGuideTransform();
   drawMirrorBtn();
 });
 

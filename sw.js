@@ -1,6 +1,6 @@
 /* オフラインで起動できるようにアプリ本体だけをキャッシュする。
    写真データは IndexedDB にあり、ここには入らない。 */
-const CACHE = 'dental-photo-v8';
+const CACHE = 'dental-photo-v9';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', ev => {
