@@ -12,19 +12,19 @@
 const VIEWS = [
   { id: 'io_front', label: '口腔内 正面', tip: '奥歯を噛み合わせます',
     hint: '中切歯の正中を中央線に合わせ、咬合平面を水平に',
-    intraoral: true, shape: 'front', mirror: null },
+    intraoral: true, zoomGroup: 'io', shape: 'front', mirror: null },
   { id: 'io_right', label: '口腔内 右側方', tip: '右の奥歯がもっと見えるようにします',
     hint: '中切歯から第二大臼歯まで入れる。正中の線に前歯を合わせる',
-    intraoral: true, shape: 'buccalR', mirror: { axis: 'h', on: false } },
+    intraoral: true, zoomGroup: 'io', shape: 'buccalR', mirror: { axis: 'h', on: false } },
   { id: 'io_left', label: '口腔内 左側方', tip: '左の奥歯がもっと見えるようにします',
     hint: '中切歯から第二大臼歯まで入れる。正中の線に前歯を合わせる',
-    intraoral: true, shape: 'buccalL', mirror: { axis: 'h', on: false } },
+    intraoral: true, zoomGroup: 'io', shape: 'buccalL', mirror: { axis: 'h', on: false } },
   { id: 'io_up', label: '上顎 咬合面', tip: 'ミラーで上の歯列全体を写します',
     hint: '正中を中央線に。左右対称に写す',
-    intraoral: true, shape: 'archUp', mirror: { axis: 'v', on: true } },
+    intraoral: true, zoomGroup: 'io', shape: 'archUp', mirror: { axis: 'v', on: true } },
   { id: 'io_low', label: '下顎 咬合面', tip: '舌が写らないようにします',
     hint: '正中を中央線に。左右対称に写す',
-    intraoral: true, shape: 'archLow', mirror: { axis: 'v', on: true } },
+    intraoral: true, zoomGroup: 'io', shape: 'archLow', mirror: { axis: 'v', on: true } },
   { id: 'fc_rest', label: '顔貌 正面（安静）', tip: '力を抜いて、正面を向きます',
     hint: '唇は閉じず、自然に力を抜いた状態',
     zoom: 1, shape: 'faceFront', mirror: null },
@@ -33,17 +33,22 @@ const VIEWS = [
     zoom: 1, shape: 'faceFront', mirror: null },
   { id: 'fc_profile', label: '顔貌 側貌', tip: '右を向いて、耳と目を水平にします',
     hint: '右向きの側貌。耳と目が同じ高さに来るように',
-    zoom: 1, shape: 'faceSide', mirror: null }
+    zoom: 1, shape: 'faceSide', mirror: null },
+  { id: 'free1', label: 'フリーフォーム', tip: '記録したいところを自由に撮ります',
+    hint: '装置の装着状態、気になる部位など。倍率とミラーは必要に応じて切り替える',
+    zoomGroup: 'free', shape: 'free', mirror: { axis: 'h', on: false } }
 ];
 const VIEW_BY_ID = Object.fromEntries(VIEWS.map(v => [v.id, v]));
 
-/* 口腔内で選べる倍率。既定は 4.6x（遠近感の歪みが最も小さい）。 */
+/* 選べる倍率。口腔内の既定は 4.6x（遠近感の歪みが最も小さい）。
+   倍率は用途ごと（口腔内／フリーフォーム）に別々に覚える。 */
 const ZOOM_STEPS = [
+  { v: 1.0, label: '1x',   note: '等倍' },
   { v: 1.6, label: '1.6x', note: '解像度を優先' },
   { v: 3.0, label: '3.0x', note: '解像度と歪みのバランス' },
   { v: 4.6, label: '4.6x', note: '遠近感の歪みを最小に' }
 ];
-const DEFAULT_IO_ZOOM = 4.6;
+const DEFAULT_ZOOM = { io: 4.6, free: 1.0 };
 
 /* ============================================================
    ガイドの線画（SVG）
@@ -221,7 +226,14 @@ function faceSideShape() {
        + `<line x1="96" y1="150" x2="272" y2="150" stroke-dasharray="4 8"/>`;
 }
 
+/* フリーフォーム。歯列の形を決めず、中央の目安線だけを出す。 */
+function freeShape() {
+  return `<line x1="200" y1="26" x2="200" y2="274" stroke-dasharray="4 9"/>`
+       + `<line x1="40" y1="150" x2="360" y2="150" stroke-dasharray="4 9"/>`;
+}
+
 const SHAPES = {
+  free: freeShape,
   front: frontShape,
   buccalR: () => buccalShape(true),
   buccalL: () => buccalShape(false),
@@ -571,7 +583,8 @@ let facing = 'environment';
 let camTrack = null;
 let zoomCap = null;       // {min,max,step} または null
 let digitalZoom = 1;      // 切り出し倍率
-let ioZoom = DEFAULT_IO_ZOOM;
+const zoomByGroup = { ...DEFAULT_ZOOM };   // 用途ごとの倍率
+let zoomGroup = null;                     // いま撮っているアングルの用途
 
 /* ミラー撮影。
    プレビューはミラーに映ったままの向きで出す。そのほうが手を動かした向きと
@@ -621,17 +634,17 @@ function drawMirrorBtn() {
 function drawZoomBar() {
   const view = VIEW_BY_ID[capQueue[capIndex]];
   const bar = $('#zoombar');
-  bar.hidden = !(view && view.intraoral);
+  bar.hidden = !(view && view.zoomGroup);
   if (bar.hidden) return;
   bar.textContent = '';
   for (const z of ZOOM_STEPS) {
     const b = el('button', null, z.label);
     b.type = 'button';
     b.title = z.note;
-    b.setAttribute('aria-pressed', String(Math.abs(z.v - ioZoom) < 0.01));
+    b.setAttribute('aria-pressed', String(Math.abs(z.v - zoomByGroup[zoomGroup]) < 0.01));
     b.addEventListener('click', async () => {
-      ioZoom = z.v;
-      await setMeta('ioZoom', z.v);
+      zoomByGroup[zoomGroup] = z.v;
+      await setMeta('zoom_' + zoomGroup, z.v);
       await applyZoom(z.v);
       drawZoomBar();
     });
@@ -646,7 +659,9 @@ async function startCapture(sessionId, only = null) {
   capQueue = only ? [only] : VIEWS.filter(v => !taken.has(v.id)).map(v => v.id);
   if (capQueue.length === 0) capQueue = VIEWS.map(v => v.id);
   capIndex = 0;
-  ioZoom = await getMeta('ioZoom', DEFAULT_IO_ZOOM);
+  for (const g of Object.keys(DEFAULT_ZOOM)) {
+    zoomByGroup[g] = await getMeta('zoom_' + g, DEFAULT_ZOOM[g]);
+  }
   show('capture', '規格撮影');
   await openCam();
   await drawCapStep();
@@ -695,7 +710,8 @@ async function drawCapStep() {
     mirrorAxis = null;
     mirrorOn = false;
   }
-  await applyZoom(v.intraoral ? ioZoom : (v.zoom || 1));
+  zoomGroup = v.zoomGroup || null;
+  await applyZoom(zoomGroup ? zoomByGroup[zoomGroup] : (v.zoom || 1));
   drawZoomBar();
   drawMirrorBtn();
 
