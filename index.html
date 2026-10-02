@@ -121,6 +121,10 @@
       <button id="signInBtn">サインイン</button>
       <button id="signOutBtn" class="ghost">サインアウト</button>
     </div>
+    <label class="chk">
+      <input id="autoSync" type="checkbox">
+      <span>撮影が終わったら自動でDriveへ同期する</span>
+    </label>
 
     <h2 class="sub">撮影者</h2>
     <label class="field">
@@ -138,6 +142,21 @@
 </main>
 
 <div id="toast" class="toast" hidden></div>
+
+<dialog id="photoDlg" class="photodlg">
+  <div class="pvhead">
+    <span id="pvTitle"></span>
+    <button id="pvClose" class="iconbtn" aria-label="閉じる">
+      <svg viewBox="0 0 24 24" class="ic"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <img id="pvImg" alt="">
+  <p id="pvMeta" class="pvmeta"></p>
+  <div class="btnrow">
+    <button id="pvRetake">撮り直す</button>
+    <button id="pvDelete" class="ghost danger">この1枚を削除</button>
+  </div>
+</dialog>
 
 <dialog id="patientDlg">
   <form method="dialog" id="patientForm">

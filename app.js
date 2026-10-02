@@ -21,10 +21,10 @@ const VIEWS = [
     intraoral: true, zoomGroup: 'io', shape: 'buccalL', mirror: { axis: 'h', on: false } },
   { id: 'io_up', label: '上顎 咬合面', tip: 'ミラーで上の歯列全体を写します',
     hint: '正中を中央線に。左右対称に写す',
-    intraoral: true, zoomGroup: 'io', shape: 'archUp', mirror: { axis: 'v', on: true } },
+    intraoral: true, zoomGroup: 'io', shape: 'archUp', mirror: { axis: 'v', on: false } },
   { id: 'io_low', label: '下顎 咬合面', tip: '舌が写らないようにします',
     hint: '正中を中央線に。左右対称に写す',
-    intraoral: true, zoomGroup: 'io', shape: 'archLow', mirror: { axis: 'v', on: true } },
+    intraoral: true, zoomGroup: 'io', shape: 'archLow', mirror: { axis: 'v', on: false } },
   { id: 'fc_rest', label: '顔貌 正面（安静）', tip: '力を抜いて、正面を向きます',
     hint: '唇は閉じず、自然に力を抜いた状態',
     zoom: 1, shape: 'faceFront', mirror: null },
@@ -48,7 +48,7 @@ const ZOOM_STEPS = [
   { v: 3.0, label: '3.0x', note: '解像度と歪みのバランス' },
   { v: 4.6, label: '4.6x', note: '遠近感の歪みを最小に' }
 ];
-const DEFAULT_ZOOM = { io: 4.6, free: 1.0 };
+const DEFAULT_ZOOM = { io: 3.0, free: 1.0 };
 
 /* ============================================================
    ガイドの線画（SVG）
@@ -246,8 +246,10 @@ function freeShape() {
 const SHAPES = {
   free: freeShape,
   front: frontShape,
-  buccalR: () => buccalShape(true),
-  buccalL: () => buccalShape(false),
+  /* ミラーを使わず直接撮ると、右側方は前歯が画面の右、左側方は前歯が左に写る。
+     患者の右側に立って見たとき、鼻が自分から見て右手にあるのと同じ。 */
+  buccalR: () => buccalShape(false),
+  buccalL: () => buccalShape(true),
   archUp: () => archShape(true),
   archLow: () => archShape(false),
   faceFront: faceFrontShape,
@@ -820,10 +822,16 @@ $('#mirrorBtn').addEventListener('click', async () => {
   drawMirrorBtn();
 });
 
-function finishCapture() {
+async function finishCapture() {
   stopCam();
   toast('撮影を保存しました');
-  renderSession(capSessionId, false);
+  const sid = capSessionId;
+  await renderSession(sid, false);
+  /* 撮り終わったら自動で同期する。スタッフが同期を押し忘れても端末だけに残らない。 */
+  if (await getMeta('autoSync', true)) {
+    const left = (await dbGetAll('photos', 'sessionId', sid)).filter(p => !p.driveFileId);
+    if (left.length) syncSession();
+  }
 }
 
 /* カメラ切替ボタン（前面／背面） */
@@ -903,7 +911,8 @@ async function renderSession(sessionId, push = true) {
     cap.appendChild(document.createTextNode(v.label + (ph && ph.driveFileId ? '（同期済）' : '')));
     cell.appendChild(cap);
 
-    cell.addEventListener('click', () => startCapture(sessionId, v.id));
+    /* 撮影済みは拡大して確認、未撮影はそのまま撮影へ */
+    cell.addEventListener('click', () => ph ? openPhoto(ph.id) : startCapture(sessionId, v.id));
     grid.appendChild(cell);
   });
 
@@ -913,6 +922,59 @@ async function renderSession(sessionId, push = true) {
 
   show('session', `${p ? (p.name || p.no) : ''} ${fmtDate(s.date)}`, push);
 }
+
+/* ---------- 写真の拡大表示 ---------- */
+let pvPhotoId = null;
+
+async function openPhoto(photoId) {
+  const ph = await dbGet('photos', photoId);
+  if (!ph) return;
+  pvPhotoId = photoId;
+  const v = VIEW_BY_ID[ph.view];
+  $('#pvTitle').textContent = v ? v.label : '';
+  const img = $('#pvImg');
+  if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+  const u = URL.createObjectURL(ph.blob);
+  img.dataset.url = u;
+  img.src = u;
+  const d = ph.createdAt ? new Date(ph.createdAt) : null;
+  const parts = [];
+  if (d && !isNaN(d)) parts.push(`${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`);
+  if (ph.operator) parts.push('撮影 ' + ph.operator);
+  parts.push(ph.driveFileId ? 'Drive同期済み' : 'Drive未同期');
+  if (ph.blob) parts.push((ph.blob.size / 1024).toFixed(0) + ' KB');
+  $('#pvMeta').textContent = parts.join('　/　');
+  $('#photoDlg').showModal();
+}
+
+function closePhoto() {
+  const img = $('#pvImg');
+  if (img.dataset.url) { URL.revokeObjectURL(img.dataset.url); delete img.dataset.url; }
+  img.removeAttribute('src');
+  $('#photoDlg').close();
+}
+
+$('#pvClose').addEventListener('click', closePhoto);
+$('#photoDlg').addEventListener('cancel', ev => { ev.preventDefault(); closePhoto(); });
+
+$('#pvRetake').addEventListener('click', async () => {
+  const ph = await dbGet('photos', pvPhotoId);
+  closePhoto();
+  if (ph) startCapture(ph.sessionId, ph.view);
+});
+
+$('#pvDelete').addEventListener('click', async () => {
+  const ph = await dbGet('photos', pvPhotoId);
+  if (!ph) return;
+  const v = VIEW_BY_ID[ph.view];
+  const msg = `${v ? v.label : 'この写真'}を端末から削除します。元に戻せません。\n`
+    + (ph.driveFileId ? 'Drive に同期済みの写真は Drive に残ります。\n' : '') + '\nよろしいですか。';
+  if (!confirm(msg)) return;
+  await dbDel('photos', ph.id);
+  closePhoto();
+  toast('削除しました');
+  renderSession(ph.sessionId, false);
+});
 
 /* 患者番号の確認バナーを閉じたかどうか。来院ごとに覚える。 */
 const warnDismissed = {};
@@ -1013,10 +1075,13 @@ let pendingSync = null;
 
 function haveToken() { return accessToken && Date.now() < tokenExpiry; }
 
+/* prompt を空にすると、一度許可した端末ではアカウント選択も確認画面も出ずに
+   そのままトークンが返る。初回だけ選択と許可が必要になる。
+   以前は毎回 consent を指定していたため、起動のたびに同じ画面が出ていた。 */
 function requestToken(after) {
   if (!tokenClient) { toast('先にクライアントIDを保存してください'); return false; }
   pendingSync = after || null;
-  tokenClient.requestAccessToken({ prompt: accessToken ? '' : 'consent' });
+  tokenClient.requestAccessToken({ prompt: '' });
   return true;
 }
 
@@ -1117,8 +1182,14 @@ $('#syncBtn').addEventListener('click', syncSession);
 /* ============================================================
    設定
    ============================================================ */
+$('#autoSync').addEventListener('change', async ev => {
+  await setMeta('autoSync', ev.target.checked);
+  toast(ev.target.checked ? '撮影後に自動で同期します' : '自動同期をやめました');
+});
+
 $('#settingsBtn').addEventListener('click', async () => {
   $('#operator').value = await getMeta('operator', '');
+  $('#autoSync').checked = await getMeta('autoSync', true);
   await initDrive();
   await drawStorage();
   show('settings', '設定');
