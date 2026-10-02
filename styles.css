@@ -338,8 +338,7 @@ button {
   padding: 14px 16px calc(16px + var(--safe-b));
   background: var(--surface);
 }
-.caplabel { margin: 0; font-size: 17px; font-weight: 600; }
-.caphint { margin: 2px 0 12px; font-size: 13px; color: var(--muted); }
+.caplabel { margin: 0 0 12px; font-size: 17px; font-weight: 600; }
 .capctrl {
   display: grid;
   grid-template-columns: 1fr auto 1fr;

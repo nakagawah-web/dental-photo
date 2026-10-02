@@ -733,10 +733,9 @@ async function drawCapStep() {
   drawZoomBar();
   drawMirrorBtn();
 
-  /* 青帯には撮る人への具体的な指示を出す。患者さんへの声かけは下に小さく置く。 */
+  /* 青帯に撮る人への指示を出す。撮影中に読むのはここだけなので一行に絞る。 */
   $('#hintbar').textContent = v.hint || '';
   $('#capLabel').textContent = v.label;
-  $('#capHint').textContent = v.tip || '';
 
   $('#guide').innerHTML = guideSVG(v.shape);
   applyGuideTransform();
