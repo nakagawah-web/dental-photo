@@ -733,9 +733,10 @@ async function drawCapStep() {
   drawZoomBar();
   drawMirrorBtn();
 
-  $('#hintbar').textContent = v.tip || '';
+  /* 青帯には撮る人への具体的な指示を出す。患者さんへの声かけは下に小さく置く。 */
+  $('#hintbar').textContent = v.hint || '';
   $('#capLabel').textContent = v.label;
-  $('#capHint').textContent = v.hint;
+  $('#capHint').textContent = v.tip || '';
 
   $('#guide').innerHTML = guideSVG(v.shape);
   applyGuideTransform();
