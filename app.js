@@ -264,6 +264,11 @@ function guideSVG(shape, withFrame = true) {
 const DRIVE_ROOT = '中川歯科_口腔内写真';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
+/* OAuth クライアントID。ブラウザで動くアプリでは公開される前提の値で、秘密ではない。
+   実際の防御は「承認済みの JavaScript 生成元」をこのアプリのURLに限定することで効かせている。
+   設定画面から別の値に変えることもできる。 */
+const DEFAULT_CLIENT_ID = '914379764957-a7ciau99ujmmhedn9dnrg1m86doq5lm2.apps.googleusercontent.com';
+
 /* ============================================================
    IndexedDB
    ============================================================ */
@@ -986,7 +991,7 @@ let accessToken = null;
 let tokenExpiry = 0;
 
 async function initDrive() {
-  const cid = await getMeta('clientId', '');
+  const cid = await getMeta('clientId', DEFAULT_CLIENT_ID);
   $('#clientId').value = cid;
   if (!cid || !window.google || !google.accounts) return;
   tokenClient = google.accounts.oauth2.initTokenClient({
@@ -1186,5 +1191,12 @@ window.addEventListener('beforeunload', ev => {
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+/* Google の認証スクリプトは遅れて読み込まれるので、用意できるまで少し待ってから初期化する。
+   設定画面を開かなくても「Driveへ同期」が押せるようにしておく。 */
+(async function waitForGoogle(tries = 0) {
+  if (window.google && google.accounts) { await initDrive(); return; }
+  if (tries < 20) setTimeout(() => waitForGoogle(tries + 1), 400);
+})();
 
 renderPatients(false);
